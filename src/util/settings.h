@@ -28,6 +28,8 @@
 #include <string.h>
 #include <string>
 #include <cmath>
+#include <vector>
+#include "NumType.h"
 
 
 namespace dso
@@ -204,6 +206,9 @@ extern int staticPattern[10][40][2];
 extern int staticPatternNum[10];
 extern int staticPatternPadding[10];
 
+extern double baseline;
+extern std::string gt_path;
+extern std::vector<SE3> gt_pose;
 
 
 

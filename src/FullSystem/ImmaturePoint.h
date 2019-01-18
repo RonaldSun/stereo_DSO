@@ -69,6 +69,7 @@ public:
 	Mat22f gradH_eig;
 	float energyTH;
 	float u,v;
+	float u_stereo, v_stereo;  // u, v used to do static stereo matching
 	FrameHessian* host;
 	int idxInImmaturePoints;
 
@@ -78,11 +79,16 @@ public:
 
 	float idepth_min;
 	float idepth_max;
+	float idepth_min_stereo;  // idepth_min used to do static matching
+	float idepth_max_stereo;  // idepth_max used to do static matching
+	float idepth_stereo;
 	ImmaturePoint(int u_, int v_, FrameHessian* host_, float type, CalibHessian* HCalib);
+	ImmaturePoint(float u_, float v_, FrameHessian* host_, CalibHessian* HCalib);
 	~ImmaturePoint();
 
 	ImmaturePointStatus traceOn(FrameHessian* frame, const Mat33f &hostToFrame_KRKi, const Vec3f &hostToFrame_Kt, const Vec2f &hostToFrame_affine, CalibHessian* HCalib, bool debugPrint=false);
-
+	ImmaturePointStatus traceStereo(FrameHessian* frame, CalibHessian* HCalib);
+	
 	ImmaturePointStatus lastTraceStatus;
 	Vec2f lastTraceUV;
 	float lastTracePixelInterval;

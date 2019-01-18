@@ -84,6 +84,7 @@ public:
 
 
 	void setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHessian);
+	void setFirstStereo(	CalibHessian* HCalib, FrameHessian* newFrameHessian, FrameHessian* newFrameHessian_right);
 	bool trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*> &wraps);
 	void calcTGrads(FrameHessian* newFrameHessian);
 
@@ -98,6 +99,7 @@ public:
 
 
 	FrameHessian* firstFrame;
+	FrameHessian* firstFrame_right;
 	FrameHessian* newFrame;
 private:
 	Mat33 K[PYR_LEVELS];
@@ -113,6 +115,7 @@ private:
 	int w[PYR_LEVELS];
 	int h[PYR_LEVELS];
 	void makeK(CalibHessian* HCalib);
+	float* idepth[PYR_LEVELS];
 
 	bool snapped;
 	int snappedAt;

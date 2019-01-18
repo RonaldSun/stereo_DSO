@@ -60,6 +60,33 @@ ImmaturePoint::ImmaturePoint(int u_, int v_, FrameHessian* host_, float type, Ca
 	quality=10000;
 }
 
+ImmaturePoint::ImmaturePoint(float u_, float v_, FrameHessian* host_, CalibHessian* HCalib)
+        : u(u_), v(v_), host(host_), idepth_min(0), idepth_max(NAN), lastTraceStatus(IPS_UNINITIALIZED)
+{
+    gradH.setZero();  //Mat22f gradH
+
+    for(int idx=0;idx<patternNum;idx++)
+    {
+        int dx = patternP[idx][0];
+        int dy = patternP[idx][1];
+
+        Vec3f ptc = getInterpolatedElement33BiLin(host->dI, u+dx, v+dy,wG[0]);
+
+        color[idx] = ptc[0];
+        if(!std::isfinite(color[idx])) {energyTH=NAN; return;}
+
+        gradH += ptc.tail<2>()  * ptc.tail<2>().transpose();
+
+        weights[idx] = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + ptc.tail<2>().squaredNorm()));
+    }
+
+    energyTH = patternNum*setting_outlierTH;
+    energyTH *= setting_overallEnergyTHWeight*setting_overallEnergyTHWeight;
+
+    quality=10000;
+
+}
+
 ImmaturePoint::~ImmaturePoint()
 {
 }
@@ -148,7 +175,7 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 		dist = maxPixSearch;
 
 		// project to arbitrary depth to get direction.
-		ptpMax = pr + hostToFrame_Kt*0.01;
+		ptpMax = pr + hostToFrame_Kt*0.0001;
 		uMax = ptpMax[0] / ptpMax[2];
 		vMax = ptpMax[1] / ptpMax[2];
 
@@ -413,6 +440,283 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 	return lastTraceStatus = ImmaturePointStatus::IPS_GOOD;
 }
 
+ImmaturePointStatus ImmaturePoint::traceStereo(FrameHessian* frame, CalibHessian* HCalib){
+	Mat33f K = Mat33f::Identity();
+	K(0,0) = HCalib->fxl();
+	K(1,1) = HCalib->fyl();
+	K(0,2) = HCalib->cxl();
+	K(1,2) = HCalib->cyl();
+	
+	Mat33f KRKi = Mat33f::Identity().cast<float>();
+	Vec3f Kt;
+	Vec3f bl;
+	Vec2f aff;
+	aff << 1, 0;
+	
+	bl << -baseline, 0, 0;
+	Kt = K*bl;
+	
+	Vec3f pr = KRKi * Vec3f(u_stereo,v_stereo, 1);
+	Vec3f ptpMin = pr +Kt * idepth_min_stereo;
+	
+	float uMin = ptpMin[0] / ptpMin[2];
+	float vMin = ptpMin[1] / ptpMin[2];
+	
+	if(!(uMin > 4 && vMin > 4 && uMin < wG[0]-5 && vMin < hG[0]-5))
+	{
+		lastTraceUV = Vec2f(-1,-1);
+		lastTracePixelInterval=0;
+		return lastTraceStatus = ImmaturePointStatus::IPS_OOB;
+	}
+	
+	float dist;
+	float uMax;
+	float vMax;
+	Vec3f ptpMax;
+	float maxPixSearch = (wG[0]+hG[0])*setting_maxPixSearch;
+	
+	if(std::isfinite(idepth_max_stereo))
+	{
+		ptpMax = pr + Kt*idepth_max_stereo;
+		uMax = ptpMax[0] / ptpMax[2];
+		vMax = ptpMax[1] / ptpMax[2];
+		if(!(uMax > 4 && vMax > 4 && uMax < wG[0]-5 && vMax < hG[0]-5))
+		{
+			lastTraceUV = Vec2f(-1,-1);
+			lastTracePixelInterval=0;
+			return lastTraceStatus = ImmaturePointStatus::IPS_OOB;
+		}
+
+		// ============== check their distance. everything below 2px is OK (-> skip). ===================
+		dist = (uMin-uMax)*(uMin-uMax) + (vMin-vMax)*(vMin-vMax);
+		dist = sqrtf(dist);
+		if(dist < setting_trace_slackInterval)
+		{
+			return lastTraceStatus = ImmaturePointStatus ::IPS_SKIPPED;
+
+		}
+		assert(dist>0);
+	}
+	else
+	{
+		dist = maxPixSearch;
+
+		// project to arbitrary depth to get direction.
+		ptpMax = pr + Kt*0.0001;
+		uMax = ptpMax[0] / ptpMax[2];
+		vMax = ptpMax[1] / ptpMax[2];
+
+		// direction.
+		float dx = uMax-uMin;
+		float dy = vMax-vMin;
+		float d = 1.0f / sqrtf(dx*dx+dy*dy);
+
+		// set to [setting_maxPixSearch].
+		uMax = uMin + dist*dx*d;
+		vMax = vMin + dist*dy*d;
+
+		// may still be out!
+		if(!(uMax > 4 && vMax > 4 && uMax < wG[0]-5 && vMax < hG[0]-5))
+		{
+			lastTraceUV = Vec2f(-1,-1);
+			lastTracePixelInterval=0;
+			return lastTraceStatus = ImmaturePointStatus::IPS_OOB;
+		}
+		assert(dist>0);
+	}
+	if(!(idepth_min<0 || (ptpMin[2]>0.75 && ptpMin[2]<1.5)))
+	{
+		lastTraceUV = Vec2f(-1, -1);
+		lastTracePixelInterval = 0;
+		return lastTraceStatus = ImmaturePointStatus::IPS_OOB;
+	}
+	
+	// ============== compute error-bounds on result in pixel. if the new interval is not at least 1/2 of the old, SKIP ===================
+	float dx = setting_trace_stepsize*(uMax-uMin);
+	float dy = setting_trace_stepsize*(vMax-vMin);
+
+	float a = (Vec2f(dx,dy).transpose() * gradH * Vec2f(dx,dy));
+	float b = (Vec2f(dy,-dx).transpose() * gradH * Vec2f(dy,-dx));
+	float errorInPixel = 0.2f + 0.2f * (a+b) / a;
+	
+	if(errorInPixel*setting_trace_minImprovementFactor > dist && std::isfinite(idepth_max_stereo))
+	{
+		return lastTraceStatus = ImmaturePointStatus ::IPS_BADCONDITION;
+	}
+	
+	if(errorInPixel >10) errorInPixel=10;
+	
+	// ============== do the discrete search ===================
+	dx /= dist;
+	dy /= dist;
+	
+	if(dist>maxPixSearch)
+	{
+		uMax = uMin + maxPixSearch*dx;
+		vMax = vMin + maxPixSearch*dy;
+		dist = maxPixSearch;
+	}
+	
+	int numSteps = 1.9999f + dist / setting_trace_stepsize;
+	Mat22f Rplane = KRKi.topLeftCorner<2,2>();
+	
+	float randShift = uMin*1000-floorf(uMin*1000);
+	float ptx = uMin-randShift*dx;
+	float pty = vMin-randShift*dy;
+	
+	Vec2f rotatetPattern[MAX_RES_PER_POINT];
+	for(int idx=0;idx<patternNum;idx++)
+		rotatetPattern[idx] = Rplane * Vec2f(patternP[idx][0], patternP[idx][1]);
+	
+	if(!std::isfinite(dx) || !std::isfinite(dy))
+	{
+		lastTraceUV = Vec2f(-1,-1);
+		lastTracePixelInterval=0;
+		return lastTraceStatus = ImmaturePointStatus::IPS_OOB;
+	}
+	
+	float errors[100];
+	float bestU=0, bestV=0, bestEnergy=1e10;
+	int bestIdx=-1;
+	if(numSteps >= 100) numSteps = 99;
+	
+	for(int i=0;i<numSteps;i++)
+	{
+		float energy=0;
+		for(int idx=0;idx<patternNum;idx++)
+		{
+
+			float hitColor = getInterpolatedElement31(frame->dI,
+													  (float)(ptx+rotatetPattern[idx][0]),
+													  (float)(pty+rotatetPattern[idx][1]),
+													  wG[0]);
+
+			if(!std::isfinite(hitColor)) {energy+=1e5; continue;}
+			float residual = hitColor - (float)(aff[0] * color[idx] + aff[1]);
+			float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
+			energy += hw *residual*residual*(2-hw);
+		}
+
+		errors[i] = energy;
+		if(energy < bestEnergy)
+		{
+			bestU = ptx;
+			bestV = pty;
+			bestEnergy = energy;
+			bestIdx = i;
+		}
+
+		ptx+=dx;
+		pty+=dy;
+	}
+	
+	// find best score outside a +-2px radius.
+	float secondBest=1e10;
+	for(int i=0;i<numSteps;i++)
+	{
+		if((i < bestIdx-setting_minTraceTestRadius || i > bestIdx+setting_minTraceTestRadius) && errors[i] < secondBest)
+			secondBest = errors[i];
+	}
+	float newQuality = secondBest / bestEnergy;
+	if(newQuality < quality || numSteps > 10) quality = newQuality;
+	
+	// ============== do GN optimization ===================
+	float uBak=bestU, vBak=bestV, gnstepsize=1, stepBack=0;
+	if(setting_trace_GNIterations>0) bestEnergy = 1e5;
+	int gnStepsGood=0, gnStepsBad=0;
+	for(int it=0;it<setting_trace_GNIterations;it++)
+	{
+		float H = 1, b=0, energy=0;
+		for(int idx=0;idx<patternNum;idx++)
+		{
+			Vec3f hitColor = getInterpolatedElement33(frame->dI,
+													  (float)(bestU+rotatetPattern[idx][0]),
+													  (float)(bestV+rotatetPattern[idx][1]),wG[0]);
+
+			if(!std::isfinite((float)hitColor[0])) {energy+=1e5; continue;}
+			float residual = hitColor[0] - (aff[0] * color[idx] + aff[1]);
+			float dResdDist = dx*hitColor[1] + dy*hitColor[2];
+			float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
+
+			H += hw*dResdDist*dResdDist;
+			b += hw*residual*dResdDist;
+			energy += weights[idx]*weights[idx]*hw *residual*residual*(2-hw);
+		}
+
+
+		if(energy > bestEnergy)
+		{
+			gnStepsBad++;
+
+			// do a smaller step from old point.
+			stepBack*=0.5;
+			bestU = uBak + stepBack*dx;
+			bestV = vBak + stepBack*dy;
+		}
+		else
+		{
+			gnStepsGood++;
+
+			float step = -gnstepsize*b/H;
+			if(step < -0.5) step = -0.5;
+			else if(step > 0.5) step=0.5;
+
+			if(!std::isfinite(step)) step=0;
+
+			uBak=bestU;
+			vBak=bestV;
+			stepBack=step;
+
+			bestU += step*dx;
+			bestV += step*dy;
+			bestEnergy = energy;
+
+		}
+
+		if(fabsf(stepBack) < setting_trace_GNThreshold) break;
+	}
+
+	if(!(bestEnergy < energyTH*setting_trace_extraSlackOnTH))
+	{
+
+		lastTracePixelInterval=0;
+		lastTraceUV = Vec2f(-1,-1);
+		if(lastTraceStatus == ImmaturePointStatus::IPS_OUTLIER)
+			return lastTraceStatus = ImmaturePointStatus::IPS_OOB;
+		else
+			return lastTraceStatus = ImmaturePointStatus::IPS_OUTLIER;
+	}
+
+	// ============== set new interval ===================
+	if(dx*dx>dy*dy)
+	{
+		idepth_min_stereo = (pr[2]*(bestU-errorInPixel*dx) - pr[0]) / (Kt[0] - Kt[2]*(bestU-errorInPixel*dx));
+		idepth_max_stereo = (pr[2]*(bestU+errorInPixel*dx) - pr[0]) / (Kt[0] - Kt[2]*(bestU+errorInPixel*dx));
+	}
+	else
+	{
+		idepth_min_stereo = (pr[2]*(bestV-errorInPixel*dy) - pr[1]) / (Kt[1] - Kt[2]*(bestV-errorInPixel*dy));
+		idepth_max_stereo = (pr[2]*(bestV+errorInPixel*dy) - pr[1]) / (Kt[1] - Kt[2]*(bestV+errorInPixel*dy));
+	}
+	if(idepth_min_stereo > idepth_max_stereo) std::swap<float>(idepth_min_stereo, idepth_max_stereo);
+
+//  printf("the idpeth_min is %f, the idepth_max is %f \n", idepth_min, idepth_max);
+
+	if(!std::isfinite(idepth_min_stereo) || !std::isfinite(idepth_max_stereo) || (idepth_max_stereo<0))
+	{
+		lastTracePixelInterval=0;
+		lastTraceUV = Vec2f(-1,-1);
+		return lastTraceStatus = ImmaturePointStatus::IPS_OUTLIER;
+	}
+
+	lastTracePixelInterval=2*errorInPixel;
+	lastTraceUV = Vec2f(bestU, bestV);
+	// baseline * fx
+	double bf = -K(0,0)*bl[0];
+	idepth_stereo = (u_stereo - bestU)/bf;
+	return lastTraceStatus = ImmaturePointStatus::IPS_GOOD;
+  
+}
 
 float ImmaturePoint::getdPixdd(
 		CalibHessian *  HCalib,

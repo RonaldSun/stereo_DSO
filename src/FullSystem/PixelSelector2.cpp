@@ -74,7 +74,7 @@ int computeHistQuantil(int* hist, float below)
 	return 90;
 }
 
-
+//根据梯度的直方图确定划分区域的梯度门限
 void PixelSelector::makeHists(const FrameHessian* const fh)
 {
 	gradHistFrame = fh;

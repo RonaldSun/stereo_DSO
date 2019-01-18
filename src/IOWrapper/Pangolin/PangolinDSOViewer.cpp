@@ -132,7 +132,7 @@ void PangolinDSOViewer::run()
 	pangolin::Var<bool> settings_showFullTrajectory("ui.FullTrajectory",false,true);
 	pangolin::Var<bool> settings_showActiveConstraints("ui.ActiveConst",true,true);
 	pangolin::Var<bool> settings_showAllConstraints("ui.AllConst",false,true);
-
+	pangolin::Var<bool> settings_showGroundTruth("ui.GroundTruth",false,true);
 
 	pangolin::Var<bool> settings_show3D("ui.show3D",true,true);
 	pangolin::Var<bool> settings_showLiveDepth("ui.showDepth",true,true);
@@ -142,7 +142,7 @@ void PangolinDSOViewer::run()
 	pangolin::Var<bool> settings_showFramesWindow("ui.showFramesWindow",false,true);
 	pangolin::Var<bool> settings_showFullTracking("ui.showFullTracking",false,true);
 	pangolin::Var<bool> settings_showCoarseTracking("ui.showCoarseTracking",false,true);
-
+	
 
 	pangolin::Var<int> settings_sparsity("ui.sparsity",1,1,20,false);
 	pangolin::Var<double> settings_scaledVarTH("ui.relVarTH",0.001,1e-10,1e10, true);
@@ -168,6 +168,7 @@ void PangolinDSOViewer::run()
 	{
 		// Clear entire screen
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+// 		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
 		if(setting_render_display3D)
 		{
@@ -251,6 +252,7 @@ void PangolinDSOViewer::run()
 	    this->settings_showKFCameras = settings_showKFCameras.Get();
 	    this->settings_showTrajectory = settings_showTrajectory.Get();
 	    this->settings_showFullTrajectory = settings_showFullTrajectory.Get();
+	    this->settings_showGroundTruth = settings_showGroundTruth.Get();
 
 		setting_render_display3D = settings_show3D.Get();
 		setting_render_displayDepth = settings_showLiveDepth.Get();
@@ -399,7 +401,7 @@ void PangolinDSOViewer::drawConstraints()
 
 	if(settings_showFullTrajectory)
 	{
-		float colorGreen[3] = {0,1,0};
+		float colorGreen[3] = {1,0,0};
 		glColor3f(colorGreen[0],colorGreen[1],colorGreen[2]);
 		glLineWidth(3);
 
@@ -409,6 +411,21 @@ void PangolinDSOViewer::drawConstraints()
 			glVertex3f((float)allFramePoses[i][0],
 					(float)allFramePoses[i][1],
 					(float)allFramePoses[i][2]);
+		}
+		glEnd();
+	}
+	if(settings_showGroundTruth)
+	{
+		float colorGreen[3] = {0,1,0};
+		glColor3f(colorGreen[0],colorGreen[1],colorGreen[2]);
+		glLineWidth(3);
+
+		glBegin(GL_LINE_STRIP);
+		for(unsigned int i=0;i<allFramePoses.size();i++)
+		{
+			glVertex3f((float)(gt_pose[i].translation()[0]),
+					(float)(gt_pose[i].translation()[1]),
+					(float)(gt_pose[i].translation()[2]));
 		}
 		glEnd();
 	}

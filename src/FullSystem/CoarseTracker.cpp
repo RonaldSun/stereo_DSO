@@ -130,6 +130,156 @@ void CoarseTracker::makeK(CalibHessian* HCalib)
 	}
 }
 
+void CoarseTracker::makeCoarseDepthForFirstFrame(FrameHessian* fh)
+{
+    // make coarse tracking templates for latstRef.
+    memset(idepth[0], 0, sizeof(float)*w[0]*h[0]);
+    memset(weightSums[0], 0, sizeof(float)*w[0]*h[0]);
+
+    for(PointHessian* ph : fh->pointHessians)
+    {
+        int u = ph->u + 0.5f;
+        int v = ph->v + 0.5f;
+        float new_idepth = ph->idepth;
+        float weight = sqrtf(1e-3 / (ph->efPoint->HdiF+1e-12));
+
+        idepth[0][u+w[0]*v] += new_idepth *weight;
+        weightSums[0][u+w[0]*v] += weight;
+
+    }
+
+    for(int lvl=1; lvl<pyrLevelsUsed; lvl++)
+    {
+        int lvlm1 = lvl-1;
+        int wl = w[lvl], hl = h[lvl], wlm1 = w[lvlm1];
+
+        float* idepth_l = idepth[lvl];
+        float* weightSums_l = weightSums[lvl];
+
+        float* idepth_lm = idepth[lvlm1];
+        float* weightSums_lm = weightSums[lvlm1];
+
+        for(int y=0;y<hl;y++)
+            for(int x=0;x<wl;x++)
+            {
+                int bidx = 2*x   + 2*y*wlm1;
+                idepth_l[x + y*wl] = 		idepth_lm[bidx] +
+                                            idepth_lm[bidx+1] +
+                                            idepth_lm[bidx+wlm1] +
+                                            idepth_lm[bidx+wlm1+1];
+
+                weightSums_l[x + y*wl] = 	weightSums_lm[bidx] +
+                                            weightSums_lm[bidx+1] +
+                                            weightSums_lm[bidx+wlm1] +
+                                            weightSums_lm[bidx+wlm1+1];
+            }
+    }
+
+    // dilate idepth by 1.
+    for(int lvl=0; lvl<2; lvl++)
+    {
+        int numIts = 1;
+
+
+        for(int it=0;it<numIts;it++)
+        {
+            int wh = w[lvl]*h[lvl]-w[lvl];
+            int wl = w[lvl];
+            float* weightSumsl = weightSums[lvl];
+            float* weightSumsl_bak = weightSums_bak[lvl];
+            memcpy(weightSumsl_bak, weightSumsl, w[lvl]*h[lvl]*sizeof(float));
+            float* idepthl = idepth[lvl];	// dont need to make a temp copy of depth, since I only
+            // read values with weightSumsl>0, and write ones with weightSumsl<=0.
+            for(int i=w[lvl];i<wh;i++)
+            {
+                if(weightSumsl_bak[i] <= 0)
+                {
+                    float sum=0, num=0, numn=0;
+                    if(weightSumsl_bak[i+1+wl] > 0) { sum += idepthl[i+1+wl]; num+=weightSumsl_bak[i+1+wl]; numn++;}
+                    if(weightSumsl_bak[i-1-wl] > 0) { sum += idepthl[i-1-wl]; num+=weightSumsl_bak[i-1-wl]; numn++;}
+                    if(weightSumsl_bak[i+wl-1] > 0) { sum += idepthl[i+wl-1]; num+=weightSumsl_bak[i+wl-1]; numn++;}
+                    if(weightSumsl_bak[i-wl+1] > 0) { sum += idepthl[i-wl+1]; num+=weightSumsl_bak[i-wl+1]; numn++;}
+                    if(numn>0) {idepthl[i] = sum/numn; weightSumsl[i] = num/numn;}
+                }
+            }
+        }
+    }
+
+
+    // dilate idepth by 1 (2 on lower levels).
+    for(int lvl=2; lvl<pyrLevelsUsed; lvl++)
+    {
+        int wh = w[lvl]*h[lvl]-w[lvl];
+        int wl = w[lvl];
+        float* weightSumsl = weightSums[lvl];
+        float* weightSumsl_bak = weightSums_bak[lvl];
+        memcpy(weightSumsl_bak, weightSumsl, w[lvl]*h[lvl]*sizeof(float));
+        float* idepthl = idepth[lvl];	// dotnt need to make a temp copy of depth, since I only
+        // read values with weightSumsl>0, and write ones with weightSumsl<=0.
+        for(int i=w[lvl];i<wh;i++)
+        {
+            if(weightSumsl_bak[i] <= 0)
+            {
+                float sum=0, num=0, numn=0;
+                if(weightSumsl_bak[i+1] > 0) { sum += idepthl[i+1]; num+=weightSumsl_bak[i+1]; numn++;}
+                if(weightSumsl_bak[i-1] > 0) { sum += idepthl[i-1]; num+=weightSumsl_bak[i-1]; numn++;}
+                if(weightSumsl_bak[i+wl] > 0) { sum += idepthl[i+wl]; num+=weightSumsl_bak[i+wl]; numn++;}
+                if(weightSumsl_bak[i-wl] > 0) { sum += idepthl[i-wl]; num+=weightSumsl_bak[i-wl]; numn++;}
+                if(numn>0) {idepthl[i] = sum/numn; weightSumsl[i] = num/numn;}
+            }
+        }
+    }
+
+
+    // normalize idepths and weights.
+    for(int lvl=0; lvl<pyrLevelsUsed; lvl++)
+    {
+        float* weightSumsl = weightSums[lvl];
+        float* idepthl = idepth[lvl];
+        Eigen::Vector3f* dIRefl = lastRef->dIp[lvl];
+
+        int wl = w[lvl], hl = h[lvl];
+
+        int lpc_n=0;
+        float* lpc_u = pc_u[lvl];
+        float* lpc_v = pc_v[lvl];
+        float* lpc_idepth = pc_idepth[lvl];
+        float* lpc_color = pc_color[lvl];
+
+
+        for(int y=2;y<hl-2;y++)
+            for(int x=2;x<wl-2;x++)
+            {
+                int i = x+y*wl;
+
+                if(weightSumsl[i] > 0)
+                {
+                    idepthl[i] /= weightSumsl[i];
+                    lpc_u[lpc_n] = x;
+                    lpc_v[lpc_n] = y;
+                    lpc_idepth[lpc_n] = idepthl[i];
+                    lpc_color[lpc_n] = dIRefl[i][0];
+
+
+
+                    if(!std::isfinite(lpc_color[lpc_n]) || !(idepthl[i]>0))
+                    {
+                        idepthl[i] = -1;
+                        continue;	// just skip if something is wrong.
+                    }
+                    lpc_n++;
+                }
+                else
+                    idepthl[i] = -1;
+
+                weightSumsl[i] = 1;
+            }
+
+        pc_n[lvl] = lpc_n;
+//		printf("pc_n[lvl] is %d \n", lpc_n);
+    }
+
+}
 
 
 void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
@@ -514,7 +664,18 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 }
 
 
+void CoarseTracker::setCTRefForFirstFrame(std::vector<FrameHessian *> frameHessians)
+{
+    assert(frameHessians.size()>0);
+    lastRef = frameHessians.back();
 
+    makeCoarseDepthForFirstFrame(lastRef);
+
+    refFrameID = lastRef->shell->id;
+    lastRef_aff_g2l = lastRef->aff_g2l();
+
+    firstCoarseRMSE=-1;
+}
 
 
 

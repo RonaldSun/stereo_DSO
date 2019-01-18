@@ -270,6 +270,12 @@ void parseArgument(char* arg)
 		printf("loading data from %s!\n", source.c_str());
 		return;
 	}
+	if(1==sscanf(arg,"groundtruth=%s",buf))
+	{
+		gt_path = buf;
+		printf("loading groundtruth from %s!\n", gt_path.c_str());
+		return;
+	}
 
 	if(1==sscanf(arg,"calib=%s",buf))
 	{
@@ -349,7 +355,26 @@ void parseArgument(char* arg)
 	printf("could not parse argument \"%s\"!!!!\n", arg);
 }
 
-
+void getGroundtruth(){
+	std::ifstream inf;
+	inf.open(gt_path);
+	std::string sline;
+	std::getline(inf,sline);
+	while(std::getline(inf,sline)){
+		std::istringstream ss(sline);
+		Mat33 R;
+		Vec3 t;
+		for(int i=0;i<3;++i){
+			for(int j=0;j<3;++j){
+				ss>>R(i,j);			      
+			}
+			ss>>t(i);
+		}
+		SE3 temp(R,t);
+		gt_pose.push_back(temp);
+	}
+	inf.close();
+}
 
 int main( int argc, char** argv )
 {
@@ -357,13 +382,15 @@ int main( int argc, char** argv )
 	for(int i=1; i<argc;i++)
 		parseArgument(argv[i]);
 
+	if(gt_path.size()>0)getGroundtruth();
 	// hook crtl+C.
 	boost::thread exThread = boost::thread(exitThread);
 
 
-	ImageFolderReader* reader = new ImageFolderReader(source,calib, gammaCalib, vignette);
+	ImageFolderReader* reader = new ImageFolderReader(source+"/image_0", calib, gammaCalib, vignette);
+	ImageFolderReader* reader_right = new ImageFolderReader(source+"/image_1", calib, gammaCalib, vignette);
 	reader->setGlobalCalibration();
-
+	reader_right->setGlobalCalibration();
 
 
 	if(setting_photometricCalibration > 0 && reader->getPhotometricGamma() == 0)
@@ -419,6 +446,8 @@ int main( int argc, char** argv )
     std::thread runthread([&]() {
         std::vector<int> idsToPlay;
         std::vector<double> timesToPlayAt;
+	std::vector<int> idsToPlayRight;		// right images
+        std::vector<double> timesToPlayAtRight;
         for(int i=lstart;i>= 0 && i< reader->getNumImages() && linc*i < linc*lend;i+=linc)
         {
             idsToPlay.push_back(i);
@@ -433,9 +462,24 @@ int main( int argc, char** argv )
                 timesToPlayAt.push_back(timesToPlayAt.back() +  fabs(tsThis-tsPrev)/playbackSpeed);
             }
         }
+        for(int i=lstart;i>= 0 && i< reader_right->getNumImages() && linc*i < linc*lend;i+=linc)
+        {
+            idsToPlayRight.push_back(i);
+            if(timesToPlayAtRight.size() == 0)
+            {
+                timesToPlayAtRight.push_back((double)0);
+            }
+            else
+            {
+                double tsThis = reader_right->getTimestamp(idsToPlay[idsToPlay.size()-1]);
+                double tsPrev = reader_right->getTimestamp(idsToPlay[idsToPlay.size()-2]);
+                timesToPlayAtRight.push_back(timesToPlayAtRight.back() +  fabs(tsThis-tsPrev)/playbackSpeed);
+            }
+        }
 
 
         std::vector<ImageAndExposure*> preloadedImages;
+	std::vector<ImageAndExposure*> preloadedImagesRight;
         if(preload)
         {
             printf("LOADING ALL IMAGES!\n");
@@ -443,6 +487,7 @@ int main( int argc, char** argv )
             {
                 int i = idsToPlay[ii];
                 preloadedImages.push_back(reader->getImage(i));
+		preloadedImagesRight.push_back(reader_right->getImage(i));
             }
         }
 
@@ -465,10 +510,15 @@ int main( int argc, char** argv )
 
 
             ImageAndExposure* img;
-            if(preload)
+	    ImageAndExposure* img_right;
+            if(preload){
                 img = preloadedImages[ii];
-            else
+		img_right = preloadedImagesRight[ii];
+	    }
+            else{
                 img = reader->getImage(i);
+		img_right = reader_right->getImage(i);
+	    }
 
 
 
@@ -489,7 +539,7 @@ int main( int argc, char** argv )
 
 
 
-            if(!skipFrame) fullSystem->addActiveFrame(img, i);
+            if(!skipFrame) fullSystem->addActiveFrame(img, img_right, i);
 
 
 

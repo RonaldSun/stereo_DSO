@@ -211,6 +211,9 @@ bool setting_debugout_runquiet = false;
 
 int sparsityFactor = 5;	// not actually a setting, only some legacy stuff for coarse initializer.
 
+double baseline = 0;
+std::string gt_path = "";
+std::vector<SE3> gt_pose;
 
 void handleKey(char k)
 {
