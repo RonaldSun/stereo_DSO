@@ -33,6 +33,7 @@
 #include "FullSystem/FullSystem.h"
 #include "FullSystem/HessianBlocks.h"
 #include "FullSystem/Residuals.h"
+#include "FullSystem/ImmaturePoint.h"
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
 #include "IOWrapper/ImageRW.h"
 #include <algorithm>
@@ -282,31 +283,96 @@ void CoarseTracker::makeCoarseDepthForFirstFrame(FrameHessian* fh)
 }
 
 
-void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
+void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib)
 {
 	// make coarse tracking templates for latstRef.
 	memset(idepth[0], 0, sizeof(float)*w[0]*h[0]);
 	memset(weightSums[0], 0, sizeof(float)*w[0]*h[0]);
-
+	FrameHessian* fh_target = frameHessians.back();
+// 	for(FrameHessian* fh : frameHessians)
+// 	{
+// 		for(PointHessian* ph : fh->pointHessians)
+// 		{
+// 			if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::IN)
+// 			{
+// 				PointFrameResidual* r = ph->lastResiduals[0].first;
+// 				assert(r->efResidual->isActive() && r->target == lastRef);
+// 				int u = r->centerProjectedTo[0] + 0.5f;
+// 				int v = r->centerProjectedTo[1] + 0.5f;
+// 				float new_idepth = r->centerProjectedTo[2];
+// 				float weight = sqrtf(1e-3 / (ph->efPoint->HdiF+1e-12));
+// 
+// 				idepth[0][u+w[0]*v] += new_idepth *weight;
+// 				weightSums[0][u+w[0]*v] += weight;
+// 			}
+// 		}
+// 	}
 	for(FrameHessian* fh : frameHessians)
 	{
 		for(PointHessian* ph : fh->pointHessians)
 		{
-			if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::IN)
+			if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::IN) //contains information about residuals to the last two (!) frames. ([0] = latest, [1] = the one before).
 			{
 				PointFrameResidual* r = ph->lastResiduals[0].first;
 				assert(r->efResidual->isActive() && r->target == lastRef);
 				int u = r->centerProjectedTo[0] + 0.5f;
 				int v = r->centerProjectedTo[1] + 0.5f;
-				float new_idepth = r->centerProjectedTo[2];
+
+				ImmaturePoint* pt_track = new ImmaturePoint((float)u, (float)v, fh_target, &Hcalib);
+
+				pt_track->u_stereo = pt_track->u;
+				pt_track->v_stereo = pt_track->v;
+
+						// free to debug
+				pt_track->idepth_min_stereo = r->centerProjectedTo[2] * 0.1f;
+				pt_track->idepth_max_stereo = r->centerProjectedTo[2] * 1.9f;
+
+				ImmaturePointStatus pt_track_right = pt_track->traceStereo(fh_right, &Hcalib, 1);
+
+				float new_idepth = 0;
+
+				if (pt_track_right == ImmaturePointStatus::IPS_GOOD)
+				{
+				    ImmaturePoint* pt_track_back = new ImmaturePoint(pt_track->lastTraceUV(0), pt_track->lastTraceUV(1), fh_right, &Hcalib);
+				    pt_track_back->u_stereo = pt_track_back->u;
+				    pt_track_back->v_stereo = pt_track_back->v;
+
+
+				    pt_track_back->idepth_min_stereo = r->centerProjectedTo[2] * 0.1f;
+				    pt_track_back->idepth_max_stereo = r->centerProjectedTo[2] * 1.9f;
+
+				    ImmaturePointStatus pt_track_left = pt_track_back->traceStereo(fh_target, &Hcalib, 0);
+
+				    float depth = 1.0f/pt_track->idepth_stereo;
+				    float u_delta = abs(pt_track->u - pt_track_back->lastTraceUV(0));
+				    if(u_delta<1 && depth > 0 && depth < 50)
+				    {
+					new_idepth = pt_track->idepth_stereo;
+					delete pt_track;
+					delete pt_track_back;
+
+				    } else{
+
+					new_idepth = r->centerProjectedTo[2];
+					delete pt_track;
+					delete pt_track_back;
+				    }
+
+				}else{
+
+				    new_idepth = r->centerProjectedTo[2];
+				    delete pt_track;
+
+				}
+
 				float weight = sqrtf(1e-3 / (ph->efPoint->HdiF+1e-12));
 
 				idepth[0][u+w[0]*v] += new_idepth *weight;
 				weightSums[0][u+w[0]*v] += weight;
+
 			}
 		}
 	}
-
 
 	for(int lvl=1; lvl<pyrLevelsUsed; lvl++)
 	{
@@ -455,7 +521,7 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 	__m128 one = _mm_set1_ps(1);
 	__m128 minusOne = _mm_set1_ps(-1);
 	__m128 zero = _mm_set1_ps(0);
-
+	
 	int n = buf_warped_n;
 	assert(n%4==0);
 	for(int i=0;i<n;i+=4)
@@ -545,7 +611,6 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 	float* lpc_v = pc_v[lvl];
 	float* lpc_idepth = pc_idepth[lvl];
 	float* lpc_color = pc_color[lvl];
-
 
 	for(int i=0;i<nl;i++)
 	{
@@ -644,7 +709,6 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 	}
 	buf_warped_n = numTermsInWarped;
 
-
 	if(debugPlot)
 	{
 		IOWrap::displayImage("RES", resImage, false);
@@ -680,11 +744,11 @@ void CoarseTracker::setCTRefForFirstFrame(std::vector<FrameHessian *> frameHessi
 
 
 void CoarseTracker::setCoarseTrackingRef(
-		std::vector<FrameHessian*> frameHessians)
+		std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib)
 {
 	assert(frameHessians.size()>0);
 	lastRef = frameHessians.back();
-	makeCoarseDepthL0(frameHessians);
+	makeCoarseDepthL0(frameHessians, fh_right, Hcalib);
 
 
 
@@ -733,7 +797,7 @@ bool CoarseTracker::trackNewestCoarse(
             if(!setting_debugout_runquiet)
                 printf("INCREASING cutoff to %f (ratio is %f)!\n", setting_coarseCutoffTH*levelCutoffRepeat, resOld[5]);
 		}
-
+		
 		calcGSSSE(lvl, H, b, refToNew_current, aff_g2l_current);
 
 		float lambda = 0.01;
@@ -750,7 +814,6 @@ bool CoarseTracker::trackNewestCoarse(
 					0.0f);
 			std::cout << refToNew_current.log().transpose() << " AFF " << aff_g2l_current.vec().transpose() <<" (rel " << relAff.transpose() << ")\n";
 		}
-
 
 		for(int iteration=0; iteration < maxIterations[lvl]; iteration++)
 		{

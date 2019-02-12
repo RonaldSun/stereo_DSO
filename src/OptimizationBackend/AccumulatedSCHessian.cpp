@@ -112,8 +112,6 @@ void AccumulatedSCHessianSSE::stitchDoubleInternal(
 		b[tid].segment<8>(iIdx) += EF->adHost[ijIdx] * bp;
 		b[tid].segment<8>(jIdx) += EF->adTarget[ijIdx] * bp;
 
-
-
 		for(int k=0;k<nf;k++)
 		{
 			int kIdx = CPARS+k*8;

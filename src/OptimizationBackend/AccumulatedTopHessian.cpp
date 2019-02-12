@@ -295,9 +295,8 @@ void AccumulatedTopHessianSSE::stitchDoubleInternal(
 		b[tid].head<CPARS>() += EF->cPrior.cwiseProduct(EF->cDeltaF.cast<double>());
 		for(int h=0;h<nframes[tid];h++)
 		{
-            H[tid].diagonal().segment<8>(CPARS+h*8) += EF->frames[h]->prior;
-            b[tid].segment<8>(CPARS+h*8) += EF->frames[h]->prior.cwiseProduct(EF->frames[h]->delta_prior);
-
+			H[tid].diagonal().segment<8>(CPARS+h*8) += EF->frames[h]->prior;
+			b[tid].segment<8>(CPARS+h*8) += EF->frames[h]->prior.cwiseProduct(EF->frames[h]->delta_prior);
 		}
 	}
 }

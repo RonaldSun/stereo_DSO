@@ -635,7 +635,7 @@ void EnergyFunctional::marginalizePointsF()
 			}
 		}
 	}
-
+// 	LOG(INFO)<<"allPointsToMarg.size(): "<<allPointsToMarg.size();
 	accSSE_bot->setZero(nFrames);
 	accSSE_top_A->setZero(nFrames);
 	for(EFPoint* p : allPointsToMarg)
@@ -794,9 +794,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	accumulateSCF_MT(H_sc, b_sc,multiThreading);
 
 
-
 	bM_top = (bM+ HM * getStitchedDeltaF());
-
 
 
 
@@ -852,8 +850,16 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 
 
-
-
+// 	std::ofstream f2;
+// 	std::string dsoposefile = "/home/sjm/桌面/temp/HFinal_myself.txt";
+// 	f2.open(dsoposefile,std::ios::out);
+// 	for(int i=0;i<20;i++){
+// 	    for(int j=0;j<20;j++){
+// 		f2<<std::fixed<<std::setprecision(9)<<HFinal_top(i,j)<<" ";
+// 	    }
+// 	    f2<<std::endl;
+// 	}
+// 	f2.close();
 	VecX x;
 	if(setting_solverMode & SOLVER_SVD)
 	{
@@ -902,7 +908,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 
 	lastX = x;
-
+// 	LOG(INFO)<<"x: "<<x.transpose();
+// 	exit(1);
 
 	//resubstituteF(x, HCalib);
 	currentLambda= lambda;

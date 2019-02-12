@@ -440,7 +440,8 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 	return lastTraceStatus = ImmaturePointStatus::IPS_GOOD;
 }
 
-ImmaturePointStatus ImmaturePoint::traceStereo(FrameHessian* frame, CalibHessian* HCalib){
+// do static stereo match. if mode_right = true, it matches from left to right. otherwise do it from right to left.
+ImmaturePointStatus ImmaturePoint::traceStereo(FrameHessian* frame, CalibHessian* HCalib, bool mode_right){
 	Mat33f K = Mat33f::Identity();
 	K(0,0) = HCalib->fxl();
 	K(1,1) = HCalib->fyl();
@@ -453,7 +454,12 @@ ImmaturePointStatus ImmaturePoint::traceStereo(FrameHessian* frame, CalibHessian
 	Vec2f aff;
 	aff << 1, 0;
 	
-	bl << -baseline, 0, 0;
+	if(mode_right)
+	{
+	    bl << -baseline, 0, 0;
+	}else{
+	    bl << baseline, 0, 0;
+	}
 	Kt = K*bl;
 	
 	Vec3f pr = KRKi * Vec3f(u_stereo,v_stereo, 1);

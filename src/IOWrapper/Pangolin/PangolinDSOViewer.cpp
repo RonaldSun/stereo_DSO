@@ -132,7 +132,7 @@ void PangolinDSOViewer::run()
 	pangolin::Var<bool> settings_showFullTrajectory("ui.FullTrajectory",false,true);
 	pangolin::Var<bool> settings_showActiveConstraints("ui.ActiveConst",true,true);
 	pangolin::Var<bool> settings_showAllConstraints("ui.AllConst",false,true);
-	pangolin::Var<bool> settings_showGroundTruth("ui.GroundTruth",false,true);
+	pangolin::Var<bool> settings_showGroundTruth("ui.GroundTruth",true,true);
 
 	pangolin::Var<bool> settings_show3D("ui.show3D",true,true);
 	pangolin::Var<bool> settings_showLiveDepth("ui.showDepth",true,true);

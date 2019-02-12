@@ -875,6 +875,7 @@ void CoarseInitializer::setFirstStereo(	CalibHessian* HCalib, FrameHessian* newF
 		else
 			npts = makePixelStatus(firstFrame->dIp[lvl], statusMapB, w[lvl], h[lvl], densities[lvl]*w[0]*h[0]);
 
+// 		if(lvl == 0)LOG(INFO)<<"npts: "<<npts;
 		if(points[lvl] != 0) delete[] points[lvl];
 		points[lvl] = new Pnt[npts];
 
@@ -891,7 +892,7 @@ void CoarseInitializer::setFirstStereo(	CalibHessian* HCalib, FrameHessian* newF
 				pt->v_stereo = pt->v;
 				pt->idepth_min_stereo = 0;
 				pt->idepth_max_stereo = NAN;
-				ImmaturePointStatus stat = pt->traceStereo(firstFrame_right, HCalib);
+				ImmaturePointStatus stat = pt->traceStereo(firstFrame_right, HCalib, true);
 				if(stat==ImmaturePointStatus::IPS_GOOD) {
 					pl[nl].u = x;
 					pl[nl].v = y;
@@ -920,78 +921,90 @@ void CoarseInitializer::setFirstStereo(	CalibHessian* HCalib, FrameHessian* newF
 					nl++;
 					assert(nl <= npts);
 				} 
-// 				else {
-// 					pl[nl].u = x;
-// 					pl[nl].v = y;
-// 					pl[nl].idepth = 0.01;
-// 					//printf("the idepth is: %f\n", pl[nl].idepth);
-// 					pl[nl].iR = 0.01;
-// 					pl[nl].isGood=true;
-// 					pl[nl].energy.setZero();
-// 					pl[nl].lastHessian=0;
-// 					pl[nl].lastHessian_new=0;
-// 					pl[nl].my_type= (lvl!=0) ? 1 : statusMap[x+y*wl];
-// 					idepth[0][x+wl*y] = 0.01;
-// 
-// 					Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + x + y*w[lvl];
-// 					float sumGrad2=0;
-// 					for(int idx=0;idx<patternNum;idx++)
-// 					{
-// 					    int dx = patternP[idx][0];
-// 					    int dy = patternP[idx][1];
-// 					    float absgrad = cpt[dx + dy*w[lvl]].tail<2>().squaredNorm();
-// 					    sumGrad2 += absgrad;
-// 					}
-// 
-// 					pl[nl].outlierTH = patternNum*setting_outlierTH;
-// 
-// 					nl++;
-// 					assert(nl <= npts);
-// 				}
+				else {
+					pl[nl].u = x;
+					pl[nl].v = y;
+					pl[nl].idepth = 0.01;
+					//printf("the idepth is: %f\n", pl[nl].idepth);
+					pl[nl].iR = 0.01;
+					pl[nl].isGood=true;
+					pl[nl].energy.setZero();
+					pl[nl].lastHessian=0;
+					pl[nl].lastHessian_new=0;
+					pl[nl].my_type= (lvl!=0) ? 1 : statusMap[x+y*wl];
+					idepth[0][x+wl*y] = 0.01;
+
+					Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + x + y*w[lvl];
+					float sumGrad2=0;
+					for(int idx=0;idx<patternNum;idx++)
+					{
+					    int dx = patternP[idx][0];
+					    int dy = patternP[idx][1];
+					    float absgrad = cpt[dx + dy*w[lvl]].tail<2>().squaredNorm();
+					    sumGrad2 += absgrad;
+					}
+
+					pl[nl].outlierTH = patternNum*setting_outlierTH;
+
+					nl++;
+					assert(nl <= npts);
+				}
 				delete pt;
 			}
-// 			if(lvl!=0 && statusMapB[x+y*wl])
-// 			{
-// 			  	int lvlm1 = lvl-1;
-// 				int wlm1 = w[lvlm1];
-// 				float* idepth_l = idepth[lvl];
-// 				float* idepth_lm = idepth[lvlm1];
-// 				//assert(patternNum==9);
-// 				pl[nl].u = x+0.1;
-// 				pl[nl].v = y+0.1;
-// 				pl[nl].idepth = 1;	
-// 				pl[nl].iR = 1;		
-// 				pl[nl].isGood=true;
-// 				pl[nl].energy.setZero();
-// 				pl[nl].lastHessian=0;
-// 				pl[nl].lastHessian_new=0;
-// 				pl[nl].my_type= (lvl!=0) ? 1 : statusMap[x+y*wl];
-// 				int bidx = 2*x   + 2*y*wlm1;
-// 				idepth_l[x + y*wl] = idepth_lm[bidx] +
-// 											idepth_lm[bidx+1] +
-// 											idepth_lm[bidx+wlm1] +
-// 											idepth_lm[bidx+wlm1+1];
-// 
-// 				Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + x + y*w[lvl];
-// 				float sumGrad2=0;
-// 				for(int idx=0;idx<patternNum;idx++)
-// 				{
-// 					int dx = patternP[idx][0];
-// 					int dy = patternP[idx][1];
-// 					float absgrad = cpt[dx + dy*w[lvl]].tail<2>().squaredNorm();
-// 					sumGrad2 += absgrad;
-// 				}
-// 
-// 				pl[nl].outlierTH = patternNum*setting_outlierTH;
-// 
-// 				nl++;
-// 				assert(nl <= npts);
-// 			}
+			if(lvl!=0 && statusMapB[x+y*wl])
+			{
+			  	int lvlm1 = lvl-1;
+				int wlm1 = w[lvlm1];
+				float* idepth_l = idepth[lvl];
+				float* idepth_lm = idepth[lvlm1];
+				//assert(patternNum==9);
+				pl[nl].u = x+0.1;
+				pl[nl].v = y+0.1;
+				pl[nl].idepth = 1;	
+				pl[nl].iR = 1;		
+				pl[nl].isGood=true;
+				pl[nl].energy.setZero();
+				pl[nl].lastHessian=0;
+				pl[nl].lastHessian_new=0;
+				pl[nl].my_type= (lvl!=0) ? 1 : statusMap[x+y*wl];
+				int bidx = 2*x   + 2*y*wlm1;
+				idepth_l[x + y*wl] = idepth_lm[bidx] +
+											idepth_lm[bidx+1] +
+											idepth_lm[bidx+wlm1] +
+											idepth_lm[bidx+wlm1+1];
+
+				Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + x + y*w[lvl];
+				float sumGrad2=0;
+				for(int idx=0;idx<patternNum;idx++)
+				{
+					int dx = patternP[idx][0];
+					int dy = patternP[idx][1];
+					float absgrad = cpt[dx + dy*w[lvl]].tail<2>().squaredNorm();
+					sumGrad2 += absgrad;
+				}
+
+				pl[nl].outlierTH = patternNum*setting_outlierTH;
+
+				nl++;
+				assert(nl <= npts);
+			}
 		}
 		numPoints[lvl]=nl;
+// 		LOG(INFO)<<"lvl: "<<lvl<<" nl:"<<nl;
 	}
 	delete[] statusMap;
 	delete[] statusMapB;
+	
+	
+// 	std::ofstream f2;
+// 	std::string dsoposefile = "/home/sjm/桌面/temp/depth1_myself.txt";
+// 	f2.open(dsoposefile,std::ios::out);
+// 	for(int i=0;i<numPoints[1];i++){
+// 	    f2<<std::fixed<<std::setprecision(9)<<points[1][i].idepth<<std::endl;
+// 	}
+// 	f2.close();
+	
+	makeNN();
 
 	thisToNext=SE3();
 	snapped = false;

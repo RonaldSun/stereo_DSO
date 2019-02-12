@@ -115,6 +115,10 @@ void settingsDefault(int preset)
 		setting_minOptIterations=1;
 
 		setting_logStuff = false;
+		setting_kfGlobalWeight=0.3;   // original is 1.0. 0.3 is a balance between speed and accuracy. if tracking lost, set this para higher
+		setting_maxShiftWeightT= 0.04f * (640 + 128);   // original is 0.04f * (640+480); this para is depend on the crop size.
+		setting_maxShiftWeightR= 0.04f * (640 + 128);    // original is 0.0f * (640+480);
+		setting_maxShiftWeightRT= 0.02f * (640 + 128);  // original is 0.02f * (640+480);
 	}
 
 	if(preset == 2 || preset == 3)

@@ -33,6 +33,7 @@
 #include "util/globalCalib.h"
 #include "FullSystem/HessianBlocks.h"
 #include "util/globalFuncs.h"
+#include <iostream>
 
 namespace dso
 {
@@ -43,6 +44,7 @@ PixelSelector::PixelSelector(int w, int h)
 	randomPattern = new unsigned char[w*h];
 	std::srand(3141592);	// want to be deterministic.
 	for(int i=0;i<w*h;i++) randomPattern[i] = rand() & 0xFF;
+// 	for(int i=0;i<w*h;i++) randomPattern[i] = 0 & 0xFF;
 
 	currentPotential=3;
 
@@ -50,6 +52,9 @@ PixelSelector::PixelSelector(int w, int h)
 	gradHist = new int[100*(1+w/32)*(1+h/32)];
 	ths = new float[(w/32)*(h/32)+100];
 	thsSmoothed = new float[(w/32)*(h/32)+100];
+	for(int i=(w/32)*(h/32);i<(w/32)*(h/32)+100;i++){
+	    thsSmoothed[i]=0;
+	}
 
 	allowFast=false;
 	gradHistFrame=0;
@@ -133,7 +138,6 @@ void PixelSelector::makeHists(const FrameHessian* const fh)
 			thsSmoothed[x+y*w32] = (sum/num) * (sum/num);
 
 		}
-
 
 
 
@@ -432,7 +436,6 @@ Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
 			n4++;
 		}
 	}
-
 
 	return Eigen::Vector3i(n2,n3,n4);
 }

@@ -84,8 +84,10 @@ public:
 
 	RawResidualJacobian* J;
 
-	VecNRf res_toZeroF;
-	Vec8f JpJdF;
+// 	VecNRf res_toZeroF;
+// 	Vec8f JpJdF=Vec8f::Zero();
+	EIGEN_ALIGN16 VecNRf res_toZeroF;
+	EIGEN_ALIGN16 Vec8f JpJdF=Vec8f::Zero();
 
 
 	// status.
@@ -126,7 +128,7 @@ public:
 	std::vector<EFResidual*> residualsAll;
 
 	float bdSumF;
-	float HdiF;
+	float HdiF=1e-3;
 	float Hdd_accLF;
 	VecCf Hcd_accLF;
 	float bd_accLF;

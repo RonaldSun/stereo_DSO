@@ -178,6 +178,8 @@ private:
 	// mainPipelineFunctions
 	Vec4 trackNewCoarse(FrameHessian* fh);
 	void traceNewCoarse(FrameHessian* fh);
+	void traceNewCoarseNonKey(FrameHessian* fh, FrameHessian* fh_right);
+	void traceNewCoarseKey(FrameHessian* fh,FrameHessian* fh_right);
 	void activatePoints();
 	void activatePointsMT();
 	void activatePointsOldFirst();
@@ -299,9 +301,9 @@ private:
  *
  */
 
-	void makeKeyFrame( FrameHessian* fh);
-	void makeNonKeyFrame( FrameHessian* fh);
-	void deliverTrackedFrame(FrameHessian* fh, bool needKF);
+	void makeKeyFrame( FrameHessian* fh, FrameHessian* fh_right);
+	void makeNonKeyFrame( FrameHessian* fh, FrameHessian* fh_right);
+	void deliverTrackedFrame(FrameHessian* fh, FrameHessian* fh_right, bool needKF);
 	void mappingLoop();
 
 	// tracking / mapping synchronization. All protected by [trackMapSyncMutex].
@@ -309,6 +311,7 @@ private:
 	boost::condition_variable trackedFrameSignal;
 	boost::condition_variable mappedFrameSignal;
 	std::deque<FrameHessian*> unmappedTrackedFrames;
+	std::deque<FrameHessian*> unmappedTrackedFrames_right;
 	int needNewKFAfter;	// Otherwise, a new KF is *needed that has ID bigger than [needNewKFAfter]*.
 	boost::thread mappingThread;
 	bool runMapping;

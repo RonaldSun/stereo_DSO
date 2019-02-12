@@ -1,7 +1,7 @@
 #!/bin/bash
 #usage: python xxx.py file_name
 
-for((i=06;i<=06;i++))
+for((i=00;i<=00;i++))
   do
     {
      a=$((100+$i))

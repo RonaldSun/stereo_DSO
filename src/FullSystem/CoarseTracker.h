@@ -58,7 +58,7 @@ public:
 			std::vector<FrameHessian*> frameHessians);
 
 	void setCoarseTrackingRef(
-			std::vector<FrameHessian*> frameHessians);
+			std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib);
 
 	void makeCoarseDepthForFirstFrame(FrameHessian* fh);
 	
@@ -95,7 +95,7 @@ public:
 private:
 
 
-	void makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians);
+	void makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians, FrameHessian* fh_right, CalibHessian Hcalib);
 	float* idepth[PYR_LEVELS];
 	float* weightSums[PYR_LEVELS];
 	float* weightSums_bak[PYR_LEVELS];
