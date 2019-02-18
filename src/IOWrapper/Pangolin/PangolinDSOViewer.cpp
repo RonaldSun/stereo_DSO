@@ -449,28 +449,24 @@ void PangolinDSOViewer::publishGraph(const std::map<uint64_t, Eigen::Vector2i, s
 	{
 		int host = (int)(p.first >> 32);
         int target = (int)(p.first & (uint64_t)0xFFFFFFFF);
-
 		assert(host >= 0 && target >= 0);
 		if(host == target)
 		{
 			assert(p.second[0] == 0 && p.second[1] == 0);
 			continue;
 		}
-
 		if(host > target) continue;
-
+	  
 		connections[runningID].from = keyframesByKFID.count(host) == 0 ? 0 : keyframesByKFID[host];
 		connections[runningID].to = keyframesByKFID.count(target) == 0 ? 0 : keyframesByKFID[target];
 		connections[runningID].fwdAct = p.second[0];
 		connections[runningID].fwdMarg = p.second[1];
 		totalActFwd += p.second[0];
 		totalMargFwd += p.second[1];
-
         uint64_t inverseKey = (((uint64_t)target) << 32) + ((uint64_t)host);
 		Eigen::Vector2i st = connectivity.at(inverseKey);
 		connections[runningID].bwdAct = st[0];
 		connections[runningID].bwdMarg = st[1];
-
 		totalActBwd += st[0];
 		totalMargBwd += st[1];
 

@@ -54,15 +54,21 @@ void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointF
 	for(int k=min;k<max;k++)
 	{
 		PointFrameResidual* r = activeResiduals[k];
-		(*stats)[0] += r->linearize(&Hcalib);
-
+		if(r->stereoResidualFlag == true){
+		    (*stats)[0] += r->linearizeStereo(&Hcalib);
+		}
+		else{
+		    (*stats)[0] += r->linearize(&Hcalib);
+		}
+// 		(*stats)[0] += r->linearize(&Hcalib);
 		if(fixLinearization)
 		{
 			r->applyRes(true);
 
 			if(r->efResidual->isActive())
 			{
-				if(r->isNew)
+// 				if(r->isNew)
+				if(r->isNew&&r->stereoResidualFlag == false)
 				{
 					PointHessian* p = r->point;
 					Vec3f ptp_inf = r->host->targetPrecalc[r->target->idx].PRE_KRKiTll * Vec3f(p->u,p->v, 1);	// projected point assuming infinite depth.
@@ -161,10 +167,7 @@ Vec3 FullSystem::linearizeAll(bool fixLinearization)
 		lastEnergyP = stats[0];
 	}
 
-
 	setNewFrameEnergyTH();
-
-
 	if(fixLinearization)
 	{
 
@@ -418,11 +421,11 @@ float FullSystem::optimize(int mnumOptIts)
 
 
 	// get statistics and active residuals.
-
+// 	LOG(INFO)<<"frameHessians.size(): "<<frameHessians.size();
 	activeResiduals.clear();
 	int numPoints = 0;
 	int numLRes = 0;
-	for(FrameHessian* fh : frameHessians)
+	for(FrameHessian* fh : frameHessians){
 		for(PointHessian* ph : fh->pointHessians)
 		{
 			for(PointFrameResidual* r : ph->residuals)
@@ -437,11 +440,12 @@ float FullSystem::optimize(int mnumOptIts)
 			}
 			numPoints++;
 		}
+	}
 
     if(!setting_debugout_runquiet)
         printf("OPTIMIZE %d pts, %d active res, %d lin res!\n",ef->nPoints,(int)activeResiduals.size(), numLRes);
 
-
+// 	LOG(INFO)<<"start linearize";
 	Vec3 lastEnergy = linearizeAll(false);
 	double lastEnergyL = calcLEnergy();
 	double lastEnergyM = calcMEnergy();
@@ -546,7 +550,7 @@ float FullSystem::optimize(int mnumOptIts)
 	}
 
 
-
+// 	LOG(INFO)<<"optimize for end";
 	Vec10 newStateZero = Vec10::Zero();
 	newStateZero.segment<2>(6) = frameHessians.back()->get_state().segment<2>(6);
 
@@ -559,9 +563,7 @@ float FullSystem::optimize(int mnumOptIts)
 
 
 
-
 	lastEnergy = linearizeAll(true);
-
 
 
 

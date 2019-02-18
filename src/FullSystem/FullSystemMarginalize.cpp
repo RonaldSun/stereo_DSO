@@ -155,9 +155,10 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 
 	assert((int)frame->pointHessians.size()==0);
 
-
+	delete frame->frame_right->efFrame;
+	frame->frame_right->efFrame=0;
+	delete frame->frame_right;
 	ef->marginalizeFrame(frame->efFrame);
-
 	// drop all observations of existing points in that frame.
 
 	for(FrameHessian* fh : frameHessians)
@@ -191,14 +192,12 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 	}
 
 
-
     {
         std::vector<FrameHessian*> v;
         v.push_back(frame);
         for(IOWrap::Output3DWrapper* ow : outputWrapper)
             ow->publishKeyframes(v, true, &Hcalib);
     }
-
 
 	frame->shell->marginalizedAt = frameHessians.back()->shell->id;
 	frame->shell->movedByOpt = frame->w2c_leftEps().norm();
@@ -209,8 +208,7 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 
 
 
-
-	setPrecalcValues();
+	setPrecalcValues();	
 	ef->setAdjointsF(&Hcalib);
 }
 

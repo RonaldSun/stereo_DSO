@@ -57,6 +57,8 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	EFResidual* efResidual;
+	
+	bool stereoResidualFlag = false;
 
 	static int instanceCounter;
 
@@ -87,7 +89,8 @@ public:
 	PointFrameResidual();
 	PointFrameResidual(PointHessian* point_, FrameHessian* host_, FrameHessian* target_);
 	double linearize(CalibHessian* HCalib);
-
+	double linearizeStereo(CalibHessian* HCalib);
+	
 
 	void resetOOB()
 	{

@@ -177,6 +177,12 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 	p->setIdepth(currentIdepth);
 	p->setPointStatus(PointHessian::ACTIVE);
 
+	PointFrameResidual* r = new PointFrameResidual(p, p->host, p->host->frame_right);
+	r->state_NewEnergy = r->state_energy = 0;
+	r->state_NewState = ResState::OUTLIER;
+	r->setState(ResState::IN);
+	r->stereoResidualFlag = true;
+	p->residuals.push_back(r);
 	for(int i=0;i<nres;i++)
 		if(residuals[i].state_state == ResState::IN)
 		{

@@ -285,7 +285,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 	std::vector<SE3,Eigen::aligned_allocator<SE3>> lastF_2_fh_tries;
 	if(allFrameHistory.size() == 2){
-		initializeFromInitializer(fh);
+// 		initializeFromInitializer(fh);
 		
 		lastF_2_fh_tries.push_back(SE3(Eigen::Matrix<double, 3, 3>::Identity(), Eigen::Matrix<double,3,1>::Zero() ));
 		
@@ -546,7 +546,6 @@ void FullSystem::traceNewCoarse(FrameHessian* fh)
 // process nonkey frame to refine key frame idepth
 void FullSystem::traceNewCoarseNonKey(FrameHessian *fh, FrameHessian *fh_right) {
 	boost::unique_lock<boost::mutex> lock(mapMutex);
-
 	// new idepth after refinement
 	float idepth_min_update = 0;
 	float idepth_max_update = 0;
@@ -583,7 +582,6 @@ void FullSystem::traceNewCoarseNonKey(FrameHessian *fh, FrameHessian *fh_right) 
 		{
 			// do temperol stereo match
 			ImmaturePointStatus phTrackStatus = ph->traceOn(fh, KRKi, Kt, aff, &Hcalib, false);
-
 			if (phTrackStatus == ImmaturePointStatus::IPS_GOOD)
 			{
 				ImmaturePoint *phNonKey = new ImmaturePoint(ph->lastTraceUV(0), ph->lastTraceUV(1), fh, &Hcalib);
@@ -603,7 +601,6 @@ void FullSystem::traceNewCoarseNonKey(FrameHessian *fh, FrameHessian *fh_right) 
 
 				// do static stereo match from left image to right
 				ImmaturePointStatus phNonKeyStereoStatus = phNonKey->traceStereo(fh_right, &Hcalib, 1);
-
 				if(phNonKeyStereoStatus == ImmaturePointStatus::IPS_GOOD)
 				{
 				    ImmaturePoint* phNonKeyRight = new ImmaturePoint(phNonKey->lastTraceUV(0), phNonKey->lastTraceUV(1), fh_right, &Hcalib );
@@ -656,6 +653,7 @@ void FullSystem::traceNewCoarseNonKey(FrameHessian *fh, FrameHessian *fh_right) 
 			if (ph->lastTraceStatus == ImmaturePointStatus::IPS_UNINITIALIZED) trace_uninitialized++;
 			trace_total++;
 		}
+	
 	}
 }
 
@@ -721,7 +719,6 @@ void FullSystem::activatePointsMT_Reductor(
 
 void FullSystem::activatePointsMT()
 {
-
 	if(ef->nPoints < setting_desiredPointDensity*0.66)
 		currentMinActDist -= 0.8;
 	if(ef->nPoints < setting_desiredPointDensity*0.8)
@@ -758,95 +755,6 @@ void FullSystem::activatePointsMT()
 	//coarseTracker->debugPlotDistMap("distMap");
 
 	std::vector<ImmaturePoint*> toOptimize; toOptimize.reserve(20000);
-
-// 	if(ef->nPoints == 613){
-// 		for(FrameHessian* host : frameHessians)		// go through all active frames
-// 		{
-// 			if(host == newestHs) continue;
-// 
-// 			SE3 fhToNew = newestHs->PRE_worldToCam * host->PRE_camToWorld;
-// 			Mat33f KRKi = (coarseDistanceMap->K[1] * fhToNew.rotationMatrix().cast<float>() * coarseDistanceMap->Ki[0]);
-// 			Vec3f Kt = (coarseDistanceMap->K[1] * fhToNew.translation().cast<float>());
-// 			LOG(INFO)<<"fhToNew: \n"<<fhToNew.matrix();
-// 			LOG(INFO)<<"KRKi: \n"<<KRKi;
-// 			LOG(INFO)<<"Kt: "<<Kt.transpose();
-// 			LOG(INFO)<<"host->immaturePoints.size(): "<<host->immaturePoints.size();
-// 		// for all immaturePoints in frameHessian
-// 			for(unsigned int i=0;i<host->immaturePoints.size();i+=1)
-// 			{
-// 				ImmaturePoint* ph = host->immaturePoints[i];
-// 				ph->idxInImmaturePoints = i;
-// 
-// 				// delete points that have never been traced successfully, or that are outlier on the last trace.
-// 				if(!std::isfinite(ph->idepth_max) || ph->lastTraceStatus == IPS_OUTLIER)
-// 				{
-// 	//				immature_invalid_deleted++;
-// 					// remove point.
-// // 					delete ph;
-// // 					host->immaturePoints[i]=0;
-// 					continue;
-// 				}
-// 
-// 				// can activate only if this is true.
-// 				bool canActivate = (ph->lastTraceStatus == IPS_GOOD
-// 						|| ph->lastTraceStatus == IPS_SKIPPED
-// 						|| ph->lastTraceStatus == IPS_BADCONDITION
-// 						|| ph->lastTraceStatus == IPS_OOB )
-// 								&& ph->lastTracePixelInterval < 8
-// 								&& ph->quality > setting_minTraceQuality
-// 								&& (ph->idepth_max+ph->idepth_min) > 0;
-// 
-// 
-// 				// if I cannot activate the point, skip it. Maybe also delete it.
-// 				if(!canActivate)
-// 				{
-// 					// if point will be out afterwards, delete it instead.
-// 					if(ph->host->flaggedForMarginalization || ph->lastTraceStatus == IPS_OOB)
-// 					{
-// 	//					immature_notReady_deleted++;
-// // 						delete ph;
-// // 						host->immaturePoints[i]=0;
-// 					}
-// 	//				immature_notReady_skipped++;
-// 					continue;
-// 				}
-// 
-// 
-// 				// see if we need to activate point due to distance map.
-// 				Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt*(0.5f*(ph->idepth_max+ph->idepth_min));
-// 				int u = ptp[0] / ptp[2] + 0.5f;
-// 				int v = ptp[1] / ptp[2] + 0.5f;
-// 				std::ofstream f2;
-// 	  			std::string dsoposefile = "/home/sjm/桌面/temp/activate_myself.txt";
-// 	  			f2.open(dsoposefile,std::ios::out|std::ios::app);
-// 				f2<<std::fixed<<std::setprecision(9)<<ph->u<<" "<<ph->v<<" "<<ph->idepth_max<<" "<<ph->idepth_min;
-// 	  			f2<<std::endl;
-// 	  			f2.close();
-// // 				if(ph->u == 145 && ph->v == 21){
-// // 				    LOG(INFO)<<ph->idepth_max<<" "<<ph->idepth_min;
-// // 				    exit(1);
-// // 				}
-// // 				if((u > 0 && v > 0 && u < wG[1] && v < hG[1]))
-// // 				{
-// // 
-// // 					float dist = coarseDistanceMap->fwdWarpedIDDistFinal[u+wG[1]*v] + (ptp[0]-floorf((float)(ptp[0])));
-// // 
-// // 					if(dist>=currentMinActDist* ph->my_type)
-// // 					{
-// // 						coarseDistanceMap->addIntoDistFinal(u,v);
-// // 						toOptimize.push_back(ph);
-// // 					}
-// // 				}
-// // 				else
-// // 				{
-// // 					delete ph;
-// // 					host->immaturePoints[i]=0; //删除点的操作
-// // 				}
-// 			}
-// 		}
-// 	
-// 		exit(1);
-// 	}
 
 	for(FrameHessian* host : frameHessians)		// go through all active frames
 	{
@@ -1031,8 +939,13 @@ void FullSystem::flagPointsForRemoval()
 					int ngoodRes=0;
 					for(PointFrameResidual* r : ph->residuals)
 					{
+// 						if(r->efResidual->idxInAll==0)continue;
 						r->resetOOB();
-						r->linearize(&Hcalib);
+						if(r->stereoResidualFlag == true)
+							r->linearizeStereo(&Hcalib);
+						else
+							r->linearize(&Hcalib);
+// 						r->linearize(&Hcalib);
 						r->efResidual->isLinearized = false;
 						r->applyRes(true);
 						if(r->efResidual->isActive())
@@ -1041,7 +954,7 @@ void FullSystem::flagPointsForRemoval()
 							ngoodRes++;
 						}
 					}
-                    if(ph->idepth_hessian > setting_minIdepthH_marg)
+					if(ph->idepth_hessian > setting_minIdepthH_marg)
 					{
 						flag_inin++;
 						ph->efPoint->stateFlag = EFPointStatus::PS_MARGINALIZE;
@@ -1109,7 +1022,8 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, ImageAndExposure* imag
 	fh->makeImages(image->image, &Hcalib);
 	fh_right->ab_exposure = image_right->exposure_time;
 	fh_right->makeImages(image_right->image,&Hcalib);
-
+	fh->frame_right = fh_right;
+	
 	if(!initialized)
 	{
 		// use initializer!
@@ -1130,8 +1044,12 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, ImageAndExposure* imag
 			coarseTracker=coarseTracker_forNewKF; 
 			coarseTracker_forNewKF=tmp;
 		}
-
+		
+		if(allFrameHistory.size() == 2){
+			initializeFromInitializer(fh);
+		}
 		Vec4 tres = trackNewCoarse(fh);
+// 		LOG(INFO)<<"track done";
 		
 		if(!std::isfinite((double)tres[0]) || !std::isfinite((double)tres[1]) || !std::isfinite((double)tres[2]) || !std::isfinite((double)tres[3]))
 		{
@@ -1181,8 +1099,8 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, ImageAndExposure* imag
 
 		lock.unlock();
 		deliverTrackedFrame(fh, fh_right, needToMakeKF);
-		LOG(INFO)<<"fh->worldToCam_evalPT: "<<allFrameHistory[allFrameHistory.size()-1]->camToWorld.translation().transpose();
-		LOG(INFO)<<"fh->shell->aff_g2l: "<<allFrameHistory[allFrameHistory.size()-1]->aff_g2l.vec().transpose();
+// 		LOG(INFO)<<"fh->worldToCam_evalPT: "<<allFrameHistory[allFrameHistory.size()-1]->camToWorld.translation().transpose();
+// 		LOG(INFO)<<"fh->shell->aff_g2l: "<<allFrameHistory[allFrameHistory.size()-1]->aff_g2l.vec().transpose();
 // 		LOG(INFO)<<"fh->shell->camToTrackingRef: "<<fh->shell->camToTrackingRef.translation().transpose();
 // 		LOG(INFO)<<"fh->shell->trackingRef->camToWorld : "<<fh->shell->trackingRef->camToWorld.translation().transpose();
 // 		exit(1);
@@ -1340,9 +1258,10 @@ void FullSystem::makeKeyFrame( FrameHessian* fh, FrameHessian* fh_right)
 		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
 		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
 	}
-
+// 	LOG(INFO)<<"make keyframe";
 // 	traceNewCoarse(fh);
-	traceNewCoarseKey(fh, fh_right);
+// 	traceNewCoarseKey(fh, fh_right);
+	traceNewCoarseNonKey(fh, fh_right);
 
 	boost::unique_lock<boost::mutex> lock(mapMutex);
 
@@ -1352,8 +1271,13 @@ void FullSystem::makeKeyFrame( FrameHessian* fh, FrameHessian* fh_right)
 
 	// =========================== add New Frame to Hessian Struct. =========================
 	fh->idx = frameHessians.size();
+// 	fh_right->idx = frameHessians_right.size();
 	frameHessians.push_back(fh);
+// 	frameHessians_right.push_back(fh_right);
 	fh->frameID = allKeyFramesHistory.size();
+	fh->frame_right->frameID = 10000+allKeyFramesHistory.size();
+// 	fh->frame_right->frameID = allKeyFramesHistory.size();
+	
 	allKeyFramesHistory.push_back(fh->shell);
 	ef->insertFrame(fh, &Hcalib);
 
@@ -1380,19 +1304,18 @@ void FullSystem::makeKeyFrame( FrameHessian* fh, FrameHessian* fh_right)
 
 
 
-
 	// =========================== Activate Points (& flag for marginalization). =========================
 	activatePointsMT();
 	ef->makeIDX();
 
 
 
-
 	// =========================== OPTIMIZE ALL =========================
 
 	fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;
+// 	LOG(INFO)<<"optimize start";
 	float rmse = optimize(setting_maxOptIterations);
-
+// 	LOG(INFO)<<"rmse: "<<rmse;
 
 
 
@@ -1423,7 +1346,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh, FrameHessian* fh_right)
 
 
 
-
+// 	LOG(INFO)<<"remove outliers.";
 	// =========================== REMOVE OUTLIER =========================
 	removeOutliers();
 
@@ -1448,42 +1371,45 @@ void FullSystem::makeKeyFrame( FrameHessian* fh, FrameHessian* fh_right)
 
 
 
-
+// 	LOG(INFO)<<"flagPointsForRemoval";
 	// =========================== (Activate-)Marginalize Points =========================
 	flagPointsForRemoval();
+// 	LOG(INFO)<<"ef->dropPointsF()";
 	ef->dropPointsF();
 // 	LOG(INFO)<<"after dropPoints: "<<ef->nPoints;
+// 	LOG(INFO)<<"getNullspaces";
 	getNullspaces(
 			ef->lastNullspaces_pose,
 			ef->lastNullspaces_scale,
 			ef->lastNullspaces_affA,
 			ef->lastNullspaces_affB);
+// 	LOG(INFO)<<"ef->marginalizePointsF();";
 	ef->marginalizePointsF();
 
 
-
+// 	LOG(INFO)<<"makeNewTraces";
 	// =========================== add new Immature points & new residuals =========================
 	makeNewTraces(fh, 0);
 
-
+// 	LOG(INFO)<<"makeNewTraces end";
 
 
 
     for(IOWrap::Output3DWrapper* ow : outputWrapper)
     {
-        ow->publishGraph(ef->connectivityMap);
+	ow->publishGraph(ef->connectivityMap);
         ow->publishKeyframes(frameHessians, false, &Hcalib);
     }
 
 
-
+// 	LOG(INFO)<<"marginalizeFrame";
 	// =========================== Marginalize Frames =========================
 
 	for(unsigned int i=0;i<frameHessians.size();i++)
 		if(frameHessians[i]->flaggedForMarginalization)
 			{marginalizeFrame(frameHessians[i]); i=0;}
-
-	delete fh_right;
+// 	LOG(INFO)<<"make key end";
+// 	delete fh_right;
 
 // 	printLogLine();
     //printEigenValLine();
@@ -1501,6 +1427,8 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	firstFrame->idx = frameHessians.size();
 	frameHessians.push_back(firstFrame);
 	firstFrame->frameID = allKeyFramesHistory.size();
+	firstFrame->frame_right->frameID = 10000+allKeyFramesHistory.size();
+// 	firstFrame->frame_right->frameID = allKeyFramesHistory.size();
 	allKeyFramesHistory.push_back(firstFrame->shell);
 	ef->insertFrame(firstFrame, &Hcalib);
 	setPrecalcValues();
@@ -1571,6 +1499,13 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 
 		firstFrame->pointHessians.push_back(ph);
 		ef->insertPoint(ph);
+		PointFrameResidual* r = new PointFrameResidual(ph, ph->host, ph->host->frame_right);
+		r->state_NewEnergy = r->state_energy = 0;
+		r->state_NewState = ResState::OUTLIER;
+		r->setState(ResState::IN);
+		r->stereoResidualFlag = true;
+		ph->residuals.push_back(r);
+		ef->insertResidual(r);
 	}
 
 

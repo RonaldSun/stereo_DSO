@@ -419,11 +419,12 @@ EFResidual* EnergyFunctional::insertResidual(PointFrameResidual* r)
 	EFResidual* efr = new EFResidual(r, r->point->efPoint, r->host->efFrame, r->target->efFrame);
 	efr->idxInAll = r->point->efPoint->residualsAll.size();
 	r->point->efPoint->residualsAll.push_back(efr);
-
-    connectivityMap[(((uint64_t)efr->host->frameID) << 32) + ((uint64_t)efr->target->frameID)][0]++;
-
+	if(efr->data->stereoResidualFlag == false)
+	    connectivityMap[(((uint64_t)efr->host->frameID) << 32) + ((uint64_t)efr->target->frameID)][0]++;
+//     connectivityMap[(((uint64_t)efr->host->frameID) << 32) + ((uint64_t)efr->target->frameID)][0]++;
 	nResiduals++;
 	r->efResidual = efr;
+	
 	return efr;
 }
 EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
@@ -434,6 +435,11 @@ EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 
 	nFrames++;
 	fh->efFrame = eff;
+	//stereo
+	EFFrame* eff_right = new EFFrame(fh->frame_right);
+	eff_right->idx = frames.size()+10000;
+// 	eff_right->idx = frames.size();
+	fh->frame_right->efFrame = eff_right;
 
 	assert(HM.cols() == 8*nFrames+CPARS-8);
 	bM.conservativeResize(8*nFrames+CPARS);
@@ -489,8 +495,9 @@ void EnergyFunctional::dropResidual(EFResidual* r)
 	else
 		r->host->data->shell->statistics_outlierResOnThis++;
 
-
-    connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
+	if(r->data->stereoResidualFlag == false)
+		connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
+//     connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
 	nResiduals--;
 	r->data->efResidual=0;
 	delete r;
@@ -630,7 +637,9 @@ void EnergyFunctional::marginalizePointsF()
 				p->priorF *= setting_idepthFixPriorMargFac;
 				for(EFResidual* r : p->residualsAll)
 					if(r->isActive())
-                        connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][1]++;
+						if(r->data->stereoResidualFlag == false)
+							 connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][1]++;
+//                         connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][1]++;
 				allPointsToMarg.push_back(p);
 			}
 		}
@@ -933,6 +942,9 @@ void EnergyFunctional::makeIDX()
 			{
 				r->hostIDX = r->host->idx;
 				r->targetIDX = r->target->idx;
+				if(r->data->stereoResidualFlag == true){
+				  r->targetIDX = frames[frames.size()-1]->idx;
+				}
 			}
 		}
 
